@@ -1,25 +1,23 @@
 package pubsub
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
-	"time"
 
-	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/nats-io/nats.go"
 	"github.com/nicelogic/config"
-	"github.com/nicelogic/pubsub/producer"
+	"github.com/nicelogic/pubsub/event"
 )
 
 type Pubsub struct {
-	Client            pulsar.Client
+	Client            *nats.Conn
 	DefaultEventTopic string
 }
 
 func (pubsub *Pubsub) Init(configFilePath string) (err error) {
 	type ClientConfig struct {
 		Url                 string
-		Operation_timeout   int
-		Connection_timeout  int
 		Default_event_topic string
 	}
 	clientConfig := ClientConfig{}
@@ -29,33 +27,59 @@ func (pubsub *Pubsub) Init(configFilePath string) (err error) {
 		return err
 	}
 	log.Printf("(%#v)\n", clientConfig)
-
-	pubsub.Client, err = pulsar.NewClient(pulsar.ClientOptions{
-		URL:               clientConfig.Url,
-		OperationTimeout:  time.Duration(clientConfig.Operation_timeout) * time.Second,
-		ConnectionTimeout: time.Duration(clientConfig.Connection_timeout) * time.Second,
-	})
-	if err != nil {
-		log.Printf("Could not instantiate Pulsar client(%v)", err)
-		return err
-	}
 	if clientConfig.Default_event_topic == "" {
 		err = fmt.Errorf("clientConfig.Default_event_topic is empty, not config")
 		return err
 	}
 	pubsub.DefaultEventTopic = clientConfig.Default_event_topic
+
+	nc, err := nats.Connect(clientConfig.Url,
+		nats.MaxReconnects(-1),
+		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
+			log.Printf("DisconnectErrHandler nats.Conn(%v), err(%v)\n", nc, err)
+		}),
+		nats.ReconnectHandler(func(nc *nats.Conn) {
+			log.Printf("ReconnectHandler nats.Conn(%v)\n", nc)
+		}),
+		nats.ClosedHandler(func(nc *nats.Conn) {
+			log.Printf("client closed, nats.Conn(%v)\n", nc)
+		}),
+		nats.ErrorHandler(func(nc *nats.Conn, subscription *nats.Subscription, err error) {
+			if subscription != nil {
+				log.Printf("ErrorHandler, Async error in %q/%q: %v", subscription.Subject, subscription.Queue, err)
+			} else {
+				log.Printf("ErrorHandler, Async error outside subscription: %v", err)
+			}
+		}),
+	)
+	if err != nil {
+		log.Printf("connect error(%v)", err)
+		return err
+	}
+	pubsub.Client = nc
+	// defer nc.Drain()
+
 	log.Printf("pubsub init success\n")
 	return err
 }
 
-func (pubsub *Pubsub) CreateProducer(option pulsar.ProducerOptions) (*producer.Producer, error) {
-	pulsarProducer, err := pubsub.Client.CreateProducer(option)
+func (pubsub *Pubsub) SendAsync(
+	userIds []string,
+	payload any) error {
+
+	event := &event.Event{
+		UserIds: userIds,
+		Payload: payload,
+	}
+	payloadJson, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("pubsub.Client.CreateProducer err(%v)\n", err)
-		return nil, err
+		log.Printf("json marshal err(%v), but still return true(ntf not affect whether success)\n", err)
+		return err
 	}
-	producer := &producer.Producer{
-		Producer: pulsarProducer,
+	if err := pubsub.Client.Publish(pubsub.DefaultEventTopic, payloadJson); err != nil {
+		log.Printf("publish error(%v)\n", err)
+		return err
 	}
-	return producer, nil
+	log.Printf("SendAsync payload(%v) success\n", payload)
+	return nil
 }

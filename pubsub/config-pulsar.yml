@@ -1,5 +1,0 @@
-
-url: "pulsar+ssl://broker.pulsar.env0.luojm.com:9443"
-operation_timeout: 30 
-connection_timeout: 30
-default_event_topic: "non-persistent://tenant/app/event"
