@@ -1,0 +1,3 @@
+[submodule "crdb"]
+	path = crdb
+	url = git@github.com:nicelogic/crdb.git
