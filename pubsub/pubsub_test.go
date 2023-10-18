@@ -11,7 +11,7 @@ import (
 
 func TestPubsub(t *testing.T) {
 	pubsub := &pubsub.Pubsub{}
-	err := pubsub.Init("./config-nats.yml")
+	err := pubsub.Init("nats://user0:ccccc123@192.168.1.201:4222", "event")
 	if err != nil {
 		t.Errorf("pubsubinit error")
 	}
@@ -21,7 +21,7 @@ func TestPubsub(t *testing.T) {
 
 func TestPubsub_subscribe(t *testing.T) {
 	pubsub := &pubsub.Pubsub{}
-	err := pubsub.Init("./config-nats.yml")
+	err := pubsub.Init("nats://user0:ccccc123@192.168.1.201:4222", "event")
 	if err != nil {
 		t.Errorf("pubsubinit error")
 	}

@@ -6,7 +6,6 @@ import (
 	"log"
 
 	"github.com/nats-io/nats.go"
-	"github.com/nicelogic/config"
 	"github.com/nicelogic/pubsub/event"
 )
 
@@ -15,16 +14,14 @@ type Pubsub struct {
 	DefaultEventTopic string
 }
 
-func (pubsub *Pubsub) Init(configFilePath string) (err error) {
+func (pubsub *Pubsub) Init(url string, defaultTopic string) (err error) {
 	type ClientConfig struct {
 		Url                 string
 		Default_event_topic string
 	}
-	clientConfig := ClientConfig{}
-	err = config.Init(configFilePath, &clientConfig)
-	if err != nil {
-		log.Printf("config init err(%v)\n", err)
-		return err
+	clientConfig := ClientConfig{
+		Url: url,
+		Default_event_topic: defaultTopic,
 	}
 	log.Printf("(%#v)\n", clientConfig)
 	if clientConfig.Default_event_topic == "" {
